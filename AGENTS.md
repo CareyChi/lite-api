@@ -1,51 +1,52 @@
 # lite-api · AGENTS.md
 
-本文件适用于仓库所有目录。执行任何开发任务前，先阅读本文件及与任务相关的 docs 文档。
+适用于仓库全部目录。执行任务前阅读本文件及相关需求和架构文档。
 
-## 项目约束
+## 工程约束
 
-- 项目名称为 lite-api，仓库模块路径为 github.com/CareyChi/lite-api。
-- 唯一前端工程位于根目录 web/；不要在 backend/、frontend/ 或其他目录创建第二套前端。
-- Go 服务入口为 cmd/lite-api；业务代码置于 internal/，按领域拆分模块，保持模块化单体。
-- 设计技术栈：Go + Gin + Ent + pgx + PostgreSQL + Redis + Atlas；前端 Vue 3 + TypeScript + Vite + Pinia + TanStack Vue Query + Tailwind CSS + shadcn-vue。
-- 当前代码是初始化骨架。需求文档中的未实现功能不得伪装成已交付，也不能用假数据掩盖缺失功能。
-- 本项目独立实现。不得直接复制 New API / Sub2API 代码进入 MIT 仓库而忽视原项目许可证。
+- 项目为 lite-api，Go 模块路径 github.com/CareyChi/lite-api。保留 MIT LICENSE，独立实现，不直接复制 New API / Sub2API 的受许可证约束代码。
+- 唯一前端工程位于根目录 web/，Go 入口为 cmd/lite-api，领域代码置于 internal/。
+- 技术栈：Go 1.27 + Gin/net/http + PostgreSQL 17 + pgx v5 + sqlc + Goose + Redis；Vue 3 + TypeScript + Vite + Vue Router + Pinia + TanStack Vue Query + Tailwind CSS + shadcn-vue。按实际用例引入依赖。
+- 模块化单体；不引入 Ent/GORM、Atlas、Redis Streams、独立 MQ 或微服务，不提前创建空模块、接口和占位业务。
+- 文档中的计划不等于已实现功能。当前 S0 仅为工程骨架。
 
-## 文档优先级
+## 文档
 
-1. docs/requirements.md：业务范围、功能优先级、验收标准。
-2. docs/architecture.md：模块边界、存储设计、协议适配和调度策略。
-3. docs/api-contract.md：公共 API 路径、协议保真边界、错误和流式行为。
-4. docs/development.md：开发环境、验证命令、提交标准。
+- docs/requirements.md：产品范围、交付阶段与验收条件。
+- docs/architecture.md：模块边界、数据、路由、协议与安全设计。
+- docs/api-contract.md：原生端点、错误、状态绑定和接口契约。
+- docs/development.md：开发、构建、迁移与验证规范。
 
-修改需求或技术决策时，更新对应文档；纯实现修复不应给文档或代码追加重复的更新日志。
+仅当需求、契约或技术设计变化时更新对应内容，不把任务描述、临时方案或修改记录当作代码注释和文档更新日志。
 
-## 后端实现规则
+## 后端
 
-- 路由、中间件仅处理 HTTP 边界；协议适配、调度、额度与计费分别抽象，不在 Handler 中叠加业务逻辑。
-- 优先保留上游的请求语义、响应状态、头部及流式帧。无法完整映射的工具调用、思考块、签名、缓存字段必须显式定义处理方式，不得静默丢弃。
-- 复用带超时策略的 HTTP Transport；通过 context 传递取消信号；流式数据增量转发，不使用整段缓冲。
-- 对非幂等生成请求，未发送任何下游响应前才允许在受控策略下故障切换；开始响应后不得自动换账号重新生成。
-- 密钥只保存哈希或加密后的密文；严禁在日志中输出 Token、Authorization、Cookie、完整提示词或上游凭据。
-- 余额与账本变更必须在 PostgreSQL 事务中完成，带幂等键；Redis 不能作为扣款的最终账本。
-- 所有 schema 变更配套可审查的迁移及测试；不得在服务启动时隐式破坏生产数据库。
-- 对外可配置上游地址必须经过 SSRF 与重定向检查。鉴权、限流、账务、代理信任边界属于必须实现的安全约束。
-- 不引入无需求的抽象、重复注释或推测性兼容分支。以具体错误和测试为依据修改逻辑。
+- HTTP Handler 负责边界；gateway 编排请求，protocol 管理协议，provider 管理凭据，routing/scheduling 管理候选和租约，billing 管理计费。不允许业务模块绕过明确边界。
+- 原生协议优先，不强制转换成统一 Chat Completions JSON。合法扩展字段、工具调用、思考签名、缓存和状态语义不得静默丢失；不兼容能力明确拒绝。
+- 复用标准 HTTP Transport；SSE 增量转发、正确解析事件、及时 flush、支持取消和有界背压；不能设置会截断正常长流的全局写超时。
+- 每次上游尝试独立记录。只有上游明确未接受、可重试拒绝或有已验证幂等机制且下游未提交响应时才能重发。结果未知不自动重试。
+- 状态型 ID 必须验证所有权和上游状态域。软粘性仅作缓存优化，不替代硬绑定及权限检查。
+- PostgreSQL 是账务事实源：用 pgx + sqlc、显式事务、唯一约束、精确数值和不可变流水实现预留及结算；不使用浮点金额或 Redis 余额作最终依据。
+- 不持有跨上游 HTTP 调用的数据库事务。结算与资源释放必须独立于客户端取消，失败可根据持久化请求/尝试恢复，不能用重发生成代替对账。
+- Redis 的限流和槽位租约须原子、可续期、按所有者条件释放；Redis 丢失状态或不可用时不绕过受限付费请求。
+- PostgreSQL 承载持久任务，领取租约、幂等消费、有限退避及失败状态；只有实际存在可靠事件发布需求才实现 Transactional Outbox。
+- db/migrations/ 是 schema 唯一来源；db/queries/ 保存 sqlc SQL，生成代码纳入版本管理，不手改生成文件。迁移独立执行，不隐式破坏生产数据库。
+- 上游凭据加密、网关密钥不可逆摘要、后台密码安全哈希；日志不能暴露凭据或完整请求/响应正文。管理授权、SSRF、实际 DNS 解析地址验证及可信反代是上线门槛。
+- 只接入获得授权的上游认证方式，不伪造未授权客户端身份或规避服务限制。
 
-## 前端实现规则
+## 前端
 
-- 仅修改 web/ 下的前端文件；按领域组织页面、组件、API 与状态。
-- Vue 3 Composition API + TypeScript；Pinia 存放客户端状态，TanStack Query 管理服务器状态。
-- 统一由 API 层调用后台；用户可见的加载、失败、空数据状态必须与实际服务响应一致。
-- 使用 Tailwind CSS；可复用 UI 组件按需加入 shadcn-vue，不引入第二套全局组件体系。
-- 不为尚未开发的功能制作可点击但无效的控制，也不要把静态占位当作已上线功能。
+- 所有前端源码位于 web/；Composition API + TypeScript，Vue Router 管理页面，Pinia 管理客户端状态，TanStack Query 管理服务端数据。
+- API 层统一调用管理接口；依据真实响应渲染加载、错误、空状态和权限，金额字符串不能转成浮点进行账务计算。
+- Tailwind CSS + 按需 shadcn-vue；统计采用 ECharts，不混入第二套全局 UI 框架。
+- 未实现能力不显示为已可用，不制造假统计或无效操作。生产静态产物通过构建嵌入 Go 服务，开发模式不要求 dist。
 
-## 任务与验收
+## 开发与验收
 
-- 动工前确定影响的模块及 docs 内对应验收条件；按后端、前端、数据迁移和测试分别完成。
-- Go 修改运行 go test ./... 和 go vet ./...；Go 格式化使用 gofmt。
-- 前端修改在 web/ 下运行 npm run typecheck 和 npm run build。
-- 触及协议转换、流式处理、限流或账务必须增加确定性的测试，覆盖正常、取消、边界与失败路径。
-- 本地验证完成后才使用 CI 作最终验收；不把高频轮询 CI 作为开发手段。
-- 不在未明确要求发布时创建版本标签或 Release；不随意修改现有 LICENSE。
-- 提交说明只描述真实变动；避免在源码或文档中堆积重复的开发记录。
+- 根据当前交付阶段按垂直用例完成后端、迁移、最小界面与测试，优先实现 S1 的完整请求和计费闭环，再扩展协议与账号池。
+- Go：gofmt、go test ./...、go vet ./...；并发、租约、账务变更增加真实 PostgreSQL/Redis 集成测试及适用的 race 测试。
+- 前端：在 web/ 执行 npm run typecheck、npm run build；业务交互复杂后增加针对性测试。
+- 协议测试使用确定性的模拟上游；覆盖流式、断线、未知用量、明确拒绝与不确定提交。账务覆盖并发预留、重复消费、进程恢复，验证不会重复扣款或隐式透支。
+- 新增/修改依赖时提交 go.mod、go.sum、web/package-lock.json 中实际生成的对应变更。固定生成及迁移工具版本，验证生成代码无差异。
+- 优先本地自检，再提交并使用 CI 做最终验收，不高频轮询或以 CI 代替开发调试。无法执行的检查明确说明，不宣称通过。
+- 除明确要求发布外，只提交代码，不修改版本号、不创建 Tag 或 Release。避免无关重构、重复注释和推测性兼容分支。

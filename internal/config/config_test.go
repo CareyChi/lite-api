@@ -11,3 +11,13 @@ func TestLoad(t *testing.T) {
 		t.Fatalf("unexpected config: %+v", cfg)
 	}
 }
+
+func TestLoadDefaults(t *testing.T) {
+	t.Setenv("APP_ENV", "")
+	t.Setenv("HTTP_ADDR", "")
+
+	cfg := Load()
+	if cfg.Environment != "development" || cfg.HTTPAddr != "127.0.0.1:8080" {
+		t.Fatalf("unexpected defaults: %+v", cfg)
+	}
+}

@@ -16,7 +16,7 @@ func Load() Config {
 		cfg.Environment = "development"
 	}
 	if cfg.HTTPAddr == "" {
-		cfg.HTTPAddr = ":8080"
+		cfg.HTTPAddr = "127.0.0.1:8080"
 	}
 	return cfg
 }

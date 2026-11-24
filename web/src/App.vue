@@ -20,10 +20,10 @@ const { data, isPending, isError } = useQuery<SystemInfo>({
 })
 
 const modules = [
-  { label: '协议适配', description: 'OpenAI、Anthropic、Gemini 原生入口与流式透传', stage: 'S1–S4' },
-  { label: '账号调度', description: '模型映射、权重路由、租约、限流和故障切换', stage: 'S2' },
-  { label: '额度计费', description: '可审计的预留、结算与账本幂等性', stage: 'S3' },
-  { label: '管理控制台', description: '渠道、模型、用户、密钥与真实用量统计', stage: 'S3' }
+  { label: '协议适配', description: 'OpenAI、Anthropic、Gemini 原生入口与流式透传', stage: 'S1–S3' },
+  { label: '账号调度', description: '模型映射、权重路由、租约、限流和故障切换', stage: 'S1–S2' },
+  { label: '额度计费', description: '可审计的预留、结算与账本幂等性', stage: 'S1–S2' },
+  { label: '管理控制台', description: '渠道、模型、用户、密钥与真实用量统计', stage: 'S1–S2' }
 ]
 </script>
 

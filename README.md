@@ -1,52 +1,48 @@
 # lite-api
 
-基于 Go 与 Vue 3 的自托管 AI API 网关。架构设计参考 New API 的多渠道聚合能力与 Sub2API 的账号池调度思路，代码独立实现。
+轻量自托管 AI API 网关。参考 New API 的多渠道聚合与 Sub2API 的账号池调度思路，面向标准 SDK 和 AI Agent 独立实现。
 
-> 当前状态：**工程初始化阶段**。已提供后端健康检查、前端状态页面和本地 PostgreSQL/Redis 开发环境；尚未实现上游请求转发、身份认证、账号池、计费或管理功能。不要将当前版本投入公网运营。
+> 当前状态：**S0 工程初始化**。已有健康检查、前端工程状态页及 PostgreSQL/Redis 本地开发环境；模型转发、认证、调度和账务尚未实现，不能作为生产 AI 网关使用。
 
 ## 技术栈
 
-- 后端：Go 1.27、Gin；后续按需求引入 Ent、pgx、Atlas。
-- 数据与异步：PostgreSQL、Redis、Redis Streams。
-- 前端（仓库根目录 web/）：Vue 3、TypeScript、Vite、Pinia、TanStack Vue Query、Tailwind CSS；业务组件采用 shadcn-vue，统计图表采用 Apache ECharts。
-- 运维：Docker Compose、结构化日志；后续接入 OpenTelemetry、Prometheus 与 Grafana。
+- 后端：Go 1.27、Gin、net/http。
+- 数据：PostgreSQL 17、pgx v5、sqlc、Goose SQL 迁移；持久化恢复任务使用 PostgreSQL。
+- Redis：短期缓存、并发租约、限流及会话亲和。
+- 前端：根目录 web/，Vue 3、TypeScript、Vite、Vue Router、Pinia、TanStack Vue Query、Tailwind CSS，按需引入 shadcn-vue、ECharts。
+- 运维：Docker Compose、slog；生产构建计划将前端静态资源嵌入 Go 二进制，后续接入 Prometheus 和 OpenTelemetry。
 
-## 仓库结构
+业务依赖在对应开发阶段引入；当前 go.mod 与 web/package.json 只包含初始化工程实际所需的依赖。
 
-    cmd/lite-api/          Go 服务入口
+## 目录
+
+    cmd/lite-api/          Go 入口
     internal/config/       运行参数
     internal/httpserver/   HTTP 路由与测试
-    web/                   独立的前端工程
-    docs/requirements.md   产品需求与验收条件
-    docs/architecture.md   模块边界和设计约束
-    docs/api-contract.md   对外协议与接口约定
-    docs/development.md    本地开发与验证
-    AGENTS.md              编码 Agent 工作规则
-    compose.yaml           本地 PostgreSQL 与 Redis
+    web/                   唯一前端工程
+    docs/                  需求、架构、API 契约、开发手册
+    AGENTS.md              Agent 开发规则
+    compose.yaml           开发用 PostgreSQL / Redis
+
+后续数据库迁移、查询和生成代码分别位于 db/migrations/、db/queries/、internal/store/，按实际业务逐步建立。
 
 ## 本地启动
 
-需要 Go 1.27+、Node.js 24+、npm 和 Docker Compose。
+需要 Go 1.27、Node.js 24、npm 和 Docker Compose v2。
 
-1. 启动依赖服务：
+    docker compose up -d
+    go mod tidy
+    go run ./cmd/lite-api
 
-       cp .env.example .env
-       docker compose up -d
+在另一个终端：
 
-2. 启动后端（新的终端）：
+    cd web
+    npm install
+    npm run dev
 
-       go mod tidy
-       go run ./cmd/lite-api
+前端 http://127.0.0.1:5173，健康接口 http://127.0.0.1:8080/healthz。Vite 将 /api 请求代理至本地 Go 服务。
 
-3. 启动前端（新的终端）：
-
-       cd web
-       npm install
-       npm run dev
-
-访问 http://localhost:5173。后端健康检查为 http://localhost:8080/healthz；前端使用 Vite 代理访问 /api/v1/system/info。
-
-当前后端只读取 APP_ENV 和 HTTP_ADDR；数据库连接、Redis 客户端与迁移将在后续阶段实现。开发环境中的数据库密码仅可用于本地测试。
+Go 服务读取 APP_ENV 和 HTTP_ADDR 环境变量，默认绑定 127.0.0.1:8080；不自动加载 .env 文件。.env.example 提供配置示例。S0 未接入数据库或 Redis 客户端，Compose 内的本地密码仅供开发。
 
 ## 验证
 
@@ -54,19 +50,18 @@
     go vet ./...
     cd web && npm run typecheck && npm run build
 
-完整开发规范见 docs/development.md。
+## 路线与文档
 
-## 设计原则
+S1：私有单渠道 MVP，包含真实请求、鉴权、基础调度及额度预留/结算。
+S2：Responses、Anthropic、Gemini、完整账号池、管理控制台和生产部署。
+S3：跨协议转换、授权凭据生命周期、监控及能力增强。商业化和规模化按需立项。
 
-1. 原生协议优先透传，跨协议转换按能力明确声明，不假装无损转换。
-2. 请求转发、账号调度、鉴权和计费相互解耦，保持模块化单体。
-3. PostgreSQL 是计费账本的最终事实源；Redis 只承担缓存与并发协调。
-4. 上游订阅或账号接入仅限获得授权且符合对应服务条款的方式。
-5. 保留仓库原有 MIT LICENSE；不直接复制 New API 或 Sub2API 的受许可证约束代码。
-
-## 需求与实施
-
-- [产品需求](docs/requirements.md)
+- [产品需求与验收](docs/requirements.md)
 - [技术架构](docs/architecture.md)
-- [协议及接口](docs/api-contract.md)
-- [开发手册](docs/development.md)
+- [API 契约](docs/api-contract.md)
+- [开发指南](docs/development.md)
+- [AGENTS.md](AGENTS.md)
+
+## 许可证
+
+MIT。架构和功能独立设计，仅接入获得授权且符合上游服务条款的服务。
